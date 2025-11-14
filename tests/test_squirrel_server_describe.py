@@ -1,4 +1,5 @@
 import requests
+import pytest 
 
 def describe_squirrel_api():
     # ---------------- Happy-path core endpoints ----------------
@@ -159,10 +160,14 @@ def describe_squirrel_api():
         assert requests.put(f"{base_url}/squirrels/abc", data={"name": "X", "size": "Y"}).status_code == 404
         assert requests.delete(f"{base_url}/squirrels/abc").status_code == 404
 
-    def it_fails_on_create_missing_field(base_url):
-        # POST missing a required field should not succeed (error or connection abort)
+    def it_400s_on_create_missing_field(base_url):
+        # POST with incomplete data (missing size) should return 400 Bad Request
         try:
             r = requests.post(f"{base_url}/squirrels", data={"name": "OnlyName"}, timeout=2)
-            assert r.status_code >= 400
         except requests.exceptions.ConnectionError:
-            pass
+            pytest.fail(
+                "Expected 400 Bad Request for incomplete data, but server closed the connection"
+            )
+
+        assert r.status_code == 400
+
