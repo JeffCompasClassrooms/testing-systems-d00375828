@@ -1,7 +1,10 @@
 from pathlib import Path
 from mydb import MyDB
 
+
 def describe_mydb():
+    # ---------------- Core behavior (existing tests) ----------------
+
     def it_creates_file_if_missing(tmp_path: Path):
         # Constructor should create the backing file on first use
         db_path = tmp_path / "strings.db"
@@ -46,3 +49,72 @@ def describe_mydb():
         db = MyDB(str(tmp_path / "u.db"))
         db.saveString(s)
         assert db.loadStrings() == [s]
+
+    # ---------------- Additional edge cases (A1–A4) ----------------
+
+    def it_preserves_empty_and_whitespace_strings(tmp_path: Path):
+        """
+        A1: MyDB should faithfully store and return empty and whitespace-only strings.
+        """
+        db = MyDB(str(tmp_path / "whitespace.db"))
+        values = ["", " ", "   ", "\t", "\n", " mix \t\n "]
+        db.saveStrings(values)
+        loaded = db.loadStrings()
+        assert isinstance(loaded, list)
+        assert loaded == values
+
+    def it_handles_large_number_of_items(tmp_path: Path):
+        """
+        A2: MyDB should handle a reasonably large list of items,
+        not just a handful of strings.
+        """
+        db = MyDB(str(tmp_path / "many.db"))
+        items = [f"item-{i}" for i in range(500)]
+        db.saveStrings(items)
+        loaded = db.loadStrings()
+        assert len(loaded) == len(items)
+        # Spot-check a few positions to avoid depending on implementation details
+        assert loaded[0] == "item-0"
+        assert loaded[123] == "item-123"
+        assert loaded[-1] == "item-499"
+
+    def it_allows_multiple_overwrite_cycles_on_same_file(tmp_path: Path):
+        """
+        A3: Repeated calls to saveStrings on the same file should fully overwrite
+        the previous content with no stale data left behind.
+        """
+        db_path = tmp_path / "cycle.db"
+        db = MyDB(str(db_path))
+
+        db.saveStrings(["one", "two"])
+        assert db.loadStrings() == ["one", "two"]
+
+        db.saveStrings([])
+        assert db.loadStrings() == []
+
+        db.saveStrings(["final"])
+        assert db.loadStrings() == ["final"]
+
+    def it_interleaves_saveStrings_and_saveString_correctly(tmp_path: Path):
+        """
+        A4: Mixed usage of saveStrings (overwrite) and saveString (append)
+        should behave consistently over time.
+        """
+        db_path = tmp_path / "mixed.db"
+        db = MyDB(str(db_path))
+
+        # Start with two items
+        db.saveStrings(["a", "b"])
+        assert db.loadStrings() == ["a", "b"]
+
+        # Append one, then another
+        db.saveString("c")
+        assert db.loadStrings() == ["a", "b", "c"]
+
+        # Overwrite the whole collection
+        db.saveStrings(["X"])
+        assert db.loadStrings() == ["X"]
+
+        # Append again
+        db.saveString("Y")
+        assert db.loadStrings() == ["X", "Y"]
